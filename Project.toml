@@ -1,0 +1,7 @@
+name = "DanJulia"
+uuid = "5976e6e8-3155-4a1b-bbc1-1206c053e8d7"
+authors = ["da-n-ta <73463092+da-n-ta@users.noreply.github.com>"]
+version = "0.0.1"
+
+[compat]
+julia = "1.12"
