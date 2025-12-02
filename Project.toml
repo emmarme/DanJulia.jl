@@ -1,7 +1,19 @@
 name = "DanJulia"
 uuid = "5976e6e8-3155-4a1b-bbc1-1206c053e8d7"
-authors = ["da-n-ta <73463092+da-n-ta@users.noreply.github.com>"]
 version = "0.0.1"
+authors = ["da-n-ta <73463092+da-n-ta@users.noreply.github.com>"]
+
+[deps]
+BonitoBook = "b416d416-7a6e-4336-8c1a-1f8a8cd59518"
+Convex = "f65535da-76fb-5f13-bab9-19810c17039a"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SCS = "c946c3f1-0d1f-5ce8-9dea-7daa1f7e2d13"
 
 [compat]
+BonitoBook = "0.2.0"
+Convex = "0.16.4"
+LinearAlgebra = "1.12.0"
+Random = "1.11.0"
+SCS = "2.4.0"
 julia = "1.12"
