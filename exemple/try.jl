@@ -1,9 +1,7 @@
 using GLMakie
-using LinearAlgebra
-include("../src/DanJulia.jl")
-using .DanJulia
-
 using Random,LinearAlgebra
+using DanJulia
+
 Random.seed!(2)
 n = 10
 m = 20
