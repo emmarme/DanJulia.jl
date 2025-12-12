@@ -9,8 +9,10 @@ function p1(X, y)
     theta = Variable(n)
     L = sumsquares(X * theta - y)
     problem = minimize(L, [theta >= 0])
-    solve!(problem, SCS.Optimizer; silent_solver=true)
-    return theta.value
+    solve!(problem, SCS.Optimizer; silent=true)
+
+    return evaluate(theta)
+
 end
 
 
@@ -22,8 +24,10 @@ function p2(X, y, S)
     theta = Variable(n)
     L = sumsquares(X * theta - y)
     problem = minimize(L, [theta >= 0, sum(theta) <= S])
-    solve!(problem, SCS.Optimizer; silent_solver=true)
-    return theta.value
+    solve!(problem, SCS.Optimizer; silent=true)
+
+    return evaluate(theta)
+
 end
 
 
@@ -41,10 +45,10 @@ end
 # Trouver le S optimal qui minimise l'erreur
 function S_optimal(X, y, theta_true)
     S_vals = 4.0:0.01:8.0
-    errors = Float64[]
-    for S in S_vals
+    errors = zeros(length(S_vals))
+    for (i, S) in enumerate(S_vals)
         theta_est = p2(X, y, S)
-        push!(errors, norm(theta_est - theta_true, 1))
+        errors[i] = norm(theta_est - theta_true, 1)
     end
     S_opt = S_vals[argmin(errors)]
     min_error = minimum(errors)
@@ -54,7 +58,8 @@ function S_optimal(X, y, theta_true)
     ax = Axis(fig[1,1], xlabel="S", ylabel="Erreur", title="Erreur en fonction de S")
     lines!(ax, S_vals, errors, label="Erreur ||theta_est - theta_true||")
     vlines!(ax, [S_opt], color=:red, linestyle=:dash, label="S optimal = $(round(S_opt,digits=2))")
-    Legend(fig[1,2], ax)
+    axislegend(ax)
+
 
     return S_opt, min_error, fig
 end
@@ -66,11 +71,16 @@ function solve_p2_duale(X, y, S)
     L = sumsquares(X * theta - y)
 
     problem = minimize(L, [theta >= 0, sum(theta) <= S])
-    solve!(problem, SCS.Optimizer; silent_solver=true)
+    solve!(problem, SCS.Optimizer; silent=true)
+
+
 
     # valeurs duales
     dual_value_inf = problem.constraints[1].dual
     dual_value_sum = problem.constraints[2].dual
+
+    @assert length(dual_value_sum) == 1
+    dual_value_sum = dual_value_sum[1]
 
     return dual_value_inf, dual_value_sum
 end
@@ -81,21 +91,96 @@ end
 # analyser les résultats obtenus.
 
 function dual_values_vs_S(X, y, S_range)
-    dual_values_inf = Float64[]
-    dual_values_sum = Float64[]
+   dual_values_inf = zeros(length(S_range))
+    dual_values_sum = zeros(length(S_range))
 
-     for S in S_range
-        dual_inf_vec, dual_sum = solve_p2_duale(X, y, S)
-        push!(dual_values_inf, sum(dual_inf_vec))
-        push!(dual_values_sum, dual_sum)
-    end
+for (i, S) in enumerate(S_range)
+    dual_inf_vec, dual_sum = solve_p2_duale(X, y, S)
+    dual_values_inf[i] = sum(dual_inf_vec)
+    dual_values_sum[i] = dual_sum
+end
+
 
     # tracer les valeurs duales en fonction de S
     fig = Figure(resolution=(800,500))
     ax = Axis(fig[1,1], xlabel="S", ylabel="Valeurs duales", title="Valeurs duales en fonction de S")
     lines!(ax, S_range, dual_values_inf, label="Valeur duale inférieure")
     lines!(ax, S_range, dual_values_sum, label="Valeur duale somme")
-    Legend(fig[1,2], ax)
+    axislegend(ax)
+
 
     return fig
 end
+
+function plot_theta_comparison(theta_est, theta_true)
+    fig = Figure(resolution=(800,400))
+    ax = Axis(fig[1,1], xlabel="Index", ylabel="Value",
+              title="θ_est vs θ_true")
+
+    lines!(ax, theta_true, label="θ_true")
+    lines!(ax, theta_est, label="θ_est")
+    axislegend(ax)
+
+    return fig
+end
+
+
+function residual_vs_S(X, y, S_vals)
+    res = zeros(length(S_vals))
+
+    for (i, S) in enumerate(S_vals)
+        θ = p2(X, y, S)
+        res[i] = norm(X*θ - y)
+    end
+
+    fig = Figure(resolution=(800,400))
+    ax = Axis(fig[1,1], xlabel="S", ylabel="‖Xθ − y‖₂",
+              title="Residual Norm vs S")
+    
+    lines!(ax, S_vals, res, label="‖Xθ − y‖₂") 
+    axislegend(ax)
+
+    return fig, res
+end
+
+
+function theta_path(X, y, S_vals)
+    n = size(X, 2)
+    path = zeros(n, length(S_vals))
+
+    for (j, S) in enumerate(S_vals)
+        path[:, j] = p2(X, y, S)
+    end
+
+    fig = Figure(resolution=(900,500))
+    ax = Axis(fig[1,1], xlabel="S", ylabel="θᵢ",
+              title="Regularization Path θᵢ(S)")
+
+    for i in 1:n
+        lines!(ax, S_vals, path[i, :], label="θ_$i")
+    end
+
+    axislegend(ax)
+    return fig, path
+end
+
+function check_KKT(X, y, theta, dual_inf, dual_sum, S)
+    r = X * theta - y
+
+    # gradient of 1/2 ||Xθ - y||²: grad = Xᵀ r
+    grad = X' * r
+
+    # KKT stationarity condition:
+    # grad + dual_inf + dual_sum * 1 = 0
+    kkt_stationarity = grad .+ dual_inf .+ dual_sum
+
+    return (
+        grad = grad,
+        kkt_stationarity = kkt_stationarity,
+        comp_slackness_inf = dual_inf .* theta,
+        comp_slackness_sum = dual_sum * (S - sum(theta)),
+        primal_feasible = (minimum(theta) >= -1e-6) && (sum(theta) <= S + 1e-6),
+        dual_feasible = (minimum(dual_inf) >= -1e-6) && (dual_sum >= -1e-6)
+    )
+end
+
